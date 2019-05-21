@@ -133,13 +133,12 @@ object Serve {
   }
 
   private[this] final def extractService(serviceName: String, descriptor: FileDescriptor): Option[ServiceDescriptor] = {
-    // todo - this really needs to be on a FileDescriptorSet, not a single FileDescriptor
     val (pkg, name) = Names.splitPrev(serviceName)
     Some(descriptor).filter(_.getPackage == pkg).map(_.findServiceByName(name))
   }
 
   def createRoute(stateManager: ActorRef, proxyParallelism: Int, relayTimeout: Timeout, spec: EntitySpec)(implicit sys: ActorSystem, mat: Materializer, ec: ExecutionContext): PartialFunction[HttpRequest, Future[HttpResponse]] = {
-    val descriptorSet = DescriptorProtos.FileDescriptorSet.newBuilder.addFile(DescriptorProtos.FileDescriptorProto.parseFrom(spec.proto.get.toByteArray)).build()
+    val descriptorSet = DescriptorProtos.FileDescriptorSet.parseFrom(spec.proto)
     descriptorSet.getFileList.iterator.asScala.map({
       fdp => FileDescriptor.buildFrom(fdp,
                Array( ScalaPBDescriptorProtos.DescriptorProtoCompanion.javaDescriptor,
@@ -253,7 +252,6 @@ object Reflection {
       fileDesc.getExtensions.iterator.asScala.collect({ case ext if ext.getFullName == container => ext.getNumber }).toList
     )((list, fd) => findExtensionNumbersForContainingType(container, fd) ::: list)
 
-  // TODO create caches for all of these lookups when/if needed
   private def handle(fileDesc: FileDescriptor): Flow[ServerReflectionRequest, ServerReflectionResponse, NotUsed] =
     Flow[ServerReflectionRequest]/*DEBUG: .alsoTo(Sink.foreach(println(_)))*/.map(req => {
       import ServerReflectionRequest.{ MessageRequest => In}
